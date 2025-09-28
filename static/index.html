@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ScriptTranslit - Select & Transliterate</title>
 <style>
-body, html { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, sans-serif;}
-#app { position:relative; height:100vh; width:100vw; overflow:hidden; }
-video#cam { width:100%; height:100%; object-fit:cover; }
-canvas#overlay { position:absolute; left:0; top:0; pointer-events:auto; }
-#controls { position:absolute; bottom:12px; left:12px; display:flex; gap:8px; z-index:50; }
+body, html { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, sans-serif; overflow:hidden;}
+#app { position:relative; width:100vw; height:100vh; }
+video#cam { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; display:block; }
+canvas#overlay { position:absolute; top:0; left:0; pointer-events:auto; }
+#controls { position:absolute; bottom:12px; left:12px; display:flex; gap:8px; flex-wrap:wrap; z-index:50; }
 button, select { padding:8px 12px; border-radius:8px; border:none; background:rgba(255,255,255,0.12); color:white; }
 #info { position:absolute; top:8px; left:8px; z-index:60; background:rgba(0,0,0,0.4); padding:6px 8px; border-radius:6px;}
 #gallery { position:absolute; bottom:80px; left:12px; right:12px; z-index:40; background:rgba(0,0,0,0.7); border-radius:8px; padding:8px; max-height:40vh; overflow-y:auto; }
@@ -34,6 +34,7 @@ button, select { padding:8px 12px; border-radius:8px; border:none; background:rg
       <option value="malayalam">Malayalam</option>
     </select>
     <button id="capture">Capture</button>
+    <button id="recapture">Re-capture</button>
     <button id="ocrRegion">Transliterate Selection</button>
   </div>
 
@@ -50,15 +51,17 @@ const video = document.getElementById('cam');
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 const captureBtn = document.getElementById('capture');
+const recaptureBtn = document.getElementById('recapture');
 const ocrBtn = document.getElementById('ocrRegion');
 const toSelect = document.getElementById('toScript');
 const loader = document.getElementById('loader');
 
-let worker=null, workerReady=false, capturedImage=null;
+let worker=null, workerReady=false;
+let capturedImage=null;
 let selecting=false, selStart={}, selEnd={}, selectionRect=null;
 let captures=[];
 
-// Script detection for Indian scripts
+// Script detection
 function detectScript(text){
   if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
   if (/[\u0A00-\u0A7F]/.test(text)) return 'gurmukhi';
@@ -70,42 +73,54 @@ function detectScript(text){
   return 'devanagari';
 }
 
-// Init camera
+// Initialize camera
 async function initCamera(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}});
-    video.srcObject=stream;
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream;
     await new Promise(r=>video.onloadedmetadata=r);
-    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     startWorker();
   }catch(e){alert("Camera failed: "+e);}
 }
 
-// Start Tesseract worker
+// Stop camera
+function stopCamera(){
+  const stream = video.srcObject;
+  if(stream) stream.getTracks().forEach(track=>track.stop());
+  video.srcObject = null;
+}
+
+// Start Tesseract
 async function startWorker(){
-  worker = Tesseract.createWorker({ logger: m=>console.log(m) });
+  worker = Tesseract.createWorker({ logger:m=>console.log(m) });
   await worker.load();
   await worker.loadLanguage('hin+tam+pan+mal+tel+kan+eng');
   await worker.initialize('hin+tam+pan+mal+tel+kan+eng');
   workerReady=true;
 }
 
-// Capture frame
-captureBtn.addEventListener('click', ()=>{
-  const tmp=document.createElement('canvas');
-  tmp.width=canvas.width; tmp.height=canvas.height;
+// Capture full screen image
+function captureFrame(){
+  const tmp = document.createElement('canvas');
+  tmp.width = window.innerWidth;
+  tmp.height = window.innerHeight;
   tmp.getContext('2d').drawImage(video,0,0,tmp.width,tmp.height);
-  capturedImage=tmp;
+  capturedImage = tmp;
+  canvas.width = tmp.width;
+  canvas.height = tmp.height;
   drawCaptured();
-});
+  stopCamera();
+}
 
 // Draw captured image + selection
 function drawCaptured(){
-  if(!capturedImage) return;
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(capturedImage,0,0);
+  if(capturedImage) ctx.drawImage(capturedImage,0,0,canvas.width,canvas.height);
   if(selectionRect){
-    ctx.strokeStyle='lime'; ctx.lineWidth=2;
+    ctx.strokeStyle='lime';
+    ctx.lineWidth=2;
     ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
   }
 }
@@ -117,93 +132,95 @@ canvas.addEventListener('mousedown', e=>{
   selStart={x:e.offsetX,y:e.offsetY};
 });
 canvas.addEventListener('mousemove', e=>{
-  if(selecting){
-    selEnd={x:e.offsetX,y:e.offsetY};
-    updateSelectionRect();
-    drawCaptured();
-  }
+  if(selecting){ selEnd={x:e.offsetX,y:e.offsetY}; updateSelectionRect(); drawCaptured(); }
 });
 canvas.addEventListener('mouseup', e=>{
   selecting=false;
   selEnd={x:e.offsetX,y:e.offsetY};
-  updateSelectionRect();
-  drawCaptured();
+  updateSelectionRect(); drawCaptured();
 });
 
 // Touch selection
 canvas.addEventListener('touchstart', e=>{
   if(!capturedImage) return;
   selecting=true;
-  const t=e.touches[0];
-  selStart={x:t.clientX*canvas.width/window.innerWidth, y:t.clientY*canvas.height/window.innerHeight};
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  selStart = { x:(t.clientX-rect.left)*(canvas.width/rect.width), y:(t.clientY-rect.top)*(canvas.height/rect.height) };
 });
 canvas.addEventListener('touchmove', e=>{
-  if(selecting){
-    const t=e.touches[0];
-    selEnd={x:t.clientX*canvas.width/window.innerWidth, y:t.clientY*canvas.height/window.innerHeight};
-    updateSelectionRect(); drawCaptured();
-  }
+  if(!selecting) return;
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  selEnd = { x:(t.clientX-rect.left)*(canvas.width/rect.width), y:(t.clientY-rect.top)*(canvas.height/rect.height) };
+  updateSelectionRect(); drawCaptured();
 });
 canvas.addEventListener('touchend', e=>{ selecting=false; drawCaptured(); });
 
 // Update selection rectangle
 function updateSelectionRect(){
   if(!selStart || !selEnd) return;
-  const x=Math.min(selStart.x, selEnd.x);
-  const y=Math.min(selStart.y, selEnd.y);
+  const x=Math.min(selStart.x,selEnd.x);
+  const y=Math.min(selStart.y,selEnd.y);
   const w=Math.abs(selStart.x-selEnd.x);
   const h=Math.abs(selStart.y-selEnd.y);
   selectionRect={x,y,w,h};
 }
 
-// OCR + Transliterate selection
+// OCR + transliterate
 ocrBtn.addEventListener('click', async ()=>{
   if(!capturedImage || !selectionRect || !workerReady) return;
   loader.style.display='block';
 
-  const tmp=document.createElement('canvas');
-  tmp.width=selectionRect.w; tmp.height=selectionRect.h;
+  const tmp = document.createElement('canvas');
+  tmp.width = selectionRect.w; tmp.height = selectionRect.h;
   const tctx = tmp.getContext('2d');
   tctx.drawImage(capturedImage, selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h, 0,0,selectionRect.w,selectionRect.h);
 
-  const { data:{ words } } = await worker.recognize(tmp);
+  const {data:{words}} = await worker.recognize(tmp);
   const to = toSelect.value;
 
   const transliteratedWords = words.filter(w=>w.text && w.confidence>=20).map(w=>{
     const from = detectScript(w.text);
-    try{
-      return Sanscript.t(w.text, from, to);
-    }catch(e){
-      console.warn(`Transliteration failed for word: "${w.text}" from ${from} to ${to}`, e);
-      return w.text;
-    }
+    try{ return Sanscript.t(w.text,from,to); }
+    catch(e){ console.warn(`Transliteration failed for "${w.text}"`); return w.text; }
   });
 
   console.log("Transliterated output:", transliteratedWords.join(" "));
 
-  // Draw overlay
-  ctx.clearRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
-  ctx.drawImage(capturedImage, selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+  ctx.clearRect(selectionRect.x,selectionRect.y,selectionRect.w,selectionRect.h);
+  ctx.drawImage(capturedImage,0,0,canvas.width,canvas.height);
   ctx.save(); ctx.fillStyle='#ffff88'; ctx.font='20px sans-serif';
   for(const w of words){
     if(!w.text || w.confidence<20) continue;
     const from = detectScript(w.text);
-    let ttext = w.text;
-    try{ ttext = Sanscript.t(w.text, from, to); }catch(e){ console.warn(`Overlay transliteration failed for "${w.text}"`); }
+    let ttext=w.text;
+    try{ ttext = Sanscript.t(w.text,from,to); }catch(e){}
     const x = selectionRect.x + w.bbox.x0;
     const y = selectionRect.y + w.bbox.y0;
-    ctx.fillText(ttext, x, y);
+    ctx.fillText(ttext,x,y);
   }
   ctx.restore();
 
-  const resultText = transliteratedWords.join(' ');
-  captures.unshift({ img: tmp.toDataURL(), text: resultText });
+  captures.unshift({ img: tmp.toDataURL(), text: transliteratedWords.join(" ") });
   updateGallery();
   loader.style.display='none';
 });
 
+// Capture button
+captureBtn.addEventListener('click', ()=>captureFrame());
+
+// Re-capture button
+recaptureBtn.addEventListener('click', async ()=>{
+  capturedImage=null;
+  selectionRect=null;
+  drawCaptured();
+  await initCamera();
+});
+
+// Update gallery
 function updateGallery(){
-  const container = document.getElementById('captures');
+  const container=document.getElementById('captures');
   container.innerHTML='';
   for(const cap of captures){
     const div=document.createElement('div');
@@ -214,7 +231,8 @@ function updateGallery(){
   }
 }
 
-window.addEventListener('resize',()=>{canvas.width=video.videoWidth; canvas.height=video.videoHeight; drawCaptured();});
+window.addEventListener('resize', ()=>{ canvas.width=window.innerWidth; canvas.height=window.innerHeight; drawCaptured(); });
+
 initCamera();
 </script>
 </body>
