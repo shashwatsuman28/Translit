@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ScriptTranslit - Select & Transliterate</title>
 <style>
-body, html { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, sans-serif; overflow:hidden;}
+body, html { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, sans-serif; overflow:hidden; }
 #app { position:relative; width:100vw; height:100vh; }
-video#cam { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; display:block; }
-canvas#overlay { position:absolute; top:0; left:0; pointer-events:auto; }
-#controls { position:absolute; bottom:12px; left:12px; display:flex; gap:8px; flex-wrap:wrap; z-index:50; }
-button, select { padding:8px 12px; border-radius:8px; border:none; background:rgba(255,255,255,0.12); color:white; }
-#info { position:absolute; top:8px; left:8px; z-index:60; background:rgba(0,0,0,0.4); padding:6px 8px; border-radius:6px;}
-#gallery { position:absolute; bottom:80px; left:12px; right:12px; z-index:40; background:rgba(0,0,0,0.7); border-radius:8px; padding:8px; max-height:40vh; overflow-y:auto; }
+video#cam { position:absolute; top:0; left:0; width:100vw; height:100vh; object-fit:cover; display:block; }
+canvas#overlay { position:absolute; top:0; left:0; width:100vw; height:100vh; pointer-events:auto; }
+#controls { position:absolute; bottom:0; left:0; width:100vw; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; align-items:center; z-index:60; background:rgba(0,0,0,0.7); padding:8px 0 4px 0; }
+button, select { padding:14px 18px; border-radius:10px; border:none; background:rgba(255,255,255,0.18); color:white; font-size:1.1em; min-width:44px; min-height:44px; }
+#info { position:absolute; top:8px; left:8px; z-index:70; background:rgba(0,0,0,0.4); padding:8px 10px; border-radius:8px; font-size:1em;}
+#gallery { position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.92); z-index:1000; display:none; flex-direction:column; align-items:center; justify-content:flex-start; overflow-y:auto; }
+#gallery.visible { display:flex; }
+#gallery h3 { color:#fff; margin:18px 0 10px 0; font-size:1.2em; }
+#captures { width:96vw; }
+#galleryClose { position:absolute; top:16px; right:16px; font-size:1.5em; background:rgba(255,255,255,0.2); color:#fff; border:none; border-radius:50%; width:44px; height:44px; }
+#galleryBtn { position:absolute; bottom:70px; right:18px; z-index:80; background:#222; color:#fff; border-radius:50%; width:56px; height:56px; font-size:2em; border:none; box-shadow:0 2px 8px #0006; display:flex; align-items:center; justify-content:center; }
 #loader { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:1.2em; display:none; background:rgba(0,0,0,0.6); padding:12px 16px; border-radius:8px; z-index:100; }
 </style>
 </head>
@@ -38,8 +43,10 @@ button, select { padding:8px 12px; border-radius:8px; border:none; background:rg
     <button id="ocrRegion">Transliterate Selection</button>
   </div>
 
+  <button id="galleryBtn" title="Show Gallery">📷</button>
   <div id="gallery">
-    <h3 style="margin:0 0 8px 0; font-size:1.1em;">Captured Images & Transliteration</h3>
+    <button id="galleryClose" title="Close Gallery">×</button>
+    <h3>Captured Images & Transliteration</h3>
     <div id="captures"></div>
   </div>
 </div>
@@ -225,11 +232,17 @@ function updateGallery(){
   for(const cap of captures){
     const div=document.createElement('div');
     div.style.display='flex'; div.style.alignItems='center';
-    div.style.marginBottom='8px';
-    div.innerHTML=`<img src="${cap.img}" style="width:80px;height:60px;object-fit:cover;border-radius:4px;margin-right:8px;border:1px solid #444;" /><span style="color:#ffff88;">${cap.text}</span>`;
+    div.style.marginBottom='12px';
+    div.innerHTML=`<img src="${cap.img}" style="width:90px;height:68px;object-fit:cover;border-radius:6px;margin-right:12px;border:1px solid #444;" /><span style="color:#ffff88;font-size:1.1em;">${cap.text}</span>`;
     container.appendChild(div);
   }
 }
+// Gallery show/hide logic
+const galleryBtn = document.getElementById('galleryBtn');
+const gallery = document.getElementById('gallery');
+const galleryClose = document.getElementById('galleryClose');
+galleryBtn.addEventListener('click',()=>{ gallery.classList.add('visible'); });
+galleryClose.addEventListener('click',()=>{ gallery.classList.remove('visible'); });
 
 window.addEventListener('resize', ()=>{ canvas.width=window.innerWidth; canvas.height=window.innerHeight; drawCaptured(); });
 
