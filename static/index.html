@@ -1,252 +1,466 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ScriptTranslit - Select & Transliterate</title>
-<style>
-body, html { margin:0; padding:0; height:100%; background:#000; color:#fff; font-family:system-ui, sans-serif; overflow:hidden; }
-#app { position:relative; width:100vw; height:100vh; }
-video#cam { position:absolute; top:0; left:0; width:100vw; height:100vh; object-fit:cover; display:block; }
-canvas#overlay { position:absolute; top:0; left:0; width:100vw; height:100vh; pointer-events:auto; }
-#controls { position:absolute; bottom:0; left:0; width:100vw; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; align-items:center; z-index:60; background:rgba(0,0,0,0.7); padding:8px 0 4px 0; }
-button, select { padding:14px 18px; border-radius:10px; border:none; background:rgba(255,255,255,0.18); color:white; font-size:1.1em; min-width:44px; min-height:44px; }
-#info { position:absolute; top:8px; left:8px; z-index:70; background:rgba(0,0,0,0.4); padding:8px 10px; border-radius:8px; font-size:1em;}
-#gallery { position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.92); z-index:1000; display:none; flex-direction:column; align-items:center; justify-content:flex-start; overflow-y:auto; }
-#gallery.visible { display:flex; }
-#gallery h3 { color:#fff; margin:18px 0 10px 0; font-size:1.2em; }
-#captures { width:96vw; }
-#galleryClose { position:absolute; top:16px; right:16px; font-size:1.5em; background:rgba(255,255,255,0.2); color:#fff; border:none; border-radius:50%; width:44px; height:44px; }
-#galleryBtn { position:absolute; bottom:70px; right:18px; z-index:80; background:#222; color:#fff; border-radius:50%; width:56px; height:56px; font-size:2em; border:none; box-shadow:0 2px 8px #0006; display:flex; align-items:center; justify-content:center; }
-#loader { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:1.2em; display:none; background:rgba(0,0,0,0.6); padding:12px 16px; border-radius:8px; z-index:100; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ScriptTranslit - Select & Transliterate</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: '#0a0a0a'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Ensure body and html fill screen */
+    html,
+    body {
+      height: 100%;
+    }
+
+    /* Prevent iOS rubber-band interfering with selection canvas */
+    body {
+      overscroll-behavior: none;
+    }
+
+    /* Allow touch drawing on canvas */
+    canvas#overlay {
+      touch-action: none;
+    }
+
+    /* Hide loader by default */
+    #loader {
+      display: none;
+    }
+
+    /* Fallback if Tailwind fails */
+    .no-tailwind-hidden {
+      display: none;
+    }
+
+    /* Prevent text selection while drawing selection */
+    .noselect {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+  </style>
 </head>
-<body>
-<div id="app">
-  <div id="info">Capture an image, then drag to select area for transliteration</div>
-  <div id="loader">Transliterating...</div>
-  <video id="cam" autoplay playsinline></video>
-  <canvas id="overlay"></canvas>
 
-  <div id="controls">
-    <select id="toScript">
-      <option value="iast">Latin (IAST)</option>
-      <option value="devanagari">Devanagari</option>
-      <option value="gurmukhi">Gurmukhi</option>
-      <option value="tamil">Tamil</option>
-      <option value="telugu">Telugu</option>
-      <option value="kannada">Kannada</option>
-      <option value="malayalam">Malayalam</option>
-    </select>
-    <button id="capture">Capture</button>
-    <button id="recapture">Re-capture</button>
-    <button id="ocrRegion">Transliterate Selection</button>
+<body class="h-full bg-black text-white font-sans relative noselect">
+
+  <div id="app" class="relative w-screen h-screen overflow-hidden">
+    <!-- Info banner -->
+    <div id="info"
+      class="absolute top-safe left-safe m-2 sm:m-3 z-30 bg-black/50 backdrop-blur rounded-md px-3 py-2 text-xs sm:text-sm leading-snug max-w-[80vw]">
+      <span class="font-semibold">Tip:</span> Capture, then drag to select a region to transliterate.
+    </div>
+
+    <!-- Loader -->
+    <div id="loader" class="absolute inset-0 flex items-center justify-center z-50">
+      <div
+        class="px-5 py-3 rounded-xl bg-black/70 backdrop-blur text-amber-200 text-sm sm:text-base shadow-lg animate-pulse">
+        Transliterating...
+      </div>
+    </div>
+
+    <!-- Camera & Canvas Layer -->
+    <div class="absolute inset-0">
+      <video id="cam" autoplay playsinline class="w-full h-full object-cover block" aria-label="Camera preview"></video>
+      <canvas id="overlay" class="absolute inset-0 w-full h-full"></canvas>
+    </div>
+
+    <!-- Floating Gallery Button -->
+    <button id="galleryBtn" title="Show Gallery"
+      class="fixed z-40 bottom-28 right-4 sm:bottom-32 sm:right-6 w-14 h-14 rounded-full bg-neutral-800/90 hover:bg-neutral-700 text-2xl shadow-lg shadow-black/50 flex items-center justify-center active:scale-95 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      aria-haspopup="dialog" aria-controls="gallery">📷</button>
+
+    <!-- Controls Panel -->
+    <div id="controls"
+      class="absolute z-40 bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/70 to-black/40 backdrop-blur pt-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] px-2">
+      <div class="mx-auto max-w-xl flex flex-wrap gap-2 justify-center">
+        <label class="sr-only" for="toScript">Output Script</label>
+        <select id="toScript"
+          class="flex-1 min-w-[44%] sm:min-w-[180px] px-3 py-3 rounded-lg bg-white/10 border border-white/15 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <option value="iast">Latin (IAST)</option>
+          <option value="devanagari">Devanagari</option>
+          <option value="gurmukhi">Gurmukhi</option>
+          <option value="tamil">Tamil</option>
+          <option value="telugu">Telugu</option>
+          <option value="kannada">Kannada</option>
+          <option value="malayalam">Malayalam</option>
+        </select>
+
+        <button id="capture"
+          class="px-4 py-3 rounded-lg bg-amber-600/80 hover:bg-amber-600 active:scale-95 font-medium text-sm sm:text-base shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          Capture
+        </button>
+
+        <button id="recapture"
+          class="px-4 py-3 rounded-lg bg-neutral-700/70 hover:bg-neutral-600 active:scale-95 text-sm sm:text-base shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          Re-capture
+        </button>
+
+        <button id="ocrRegion"
+          class="flex-1 sm:flex-none px-4 py-3 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 active:scale-95 font-semibold text-sm sm:text-base shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:opacity-40"
+          disabled>
+          Transliterate Selection
+        </button>
+      </div>
+    </div>
+
+    <!-- Gallery Modal -->
+    <div id="gallery" class="fixed inset-0 z-[1000] hidden flex-col bg-black/95 backdrop-blur overflow-y-auto">
+      <div class="flex items-center justify-between px-4 pt-4 pb-2">
+        <h3 class="text-lg font-semibold tracking-wide">Captured Images &amp; Transliteration</h3>
+        <button id="galleryClose"
+          class="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-xl leading-none flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          ×
+        </button>
+      </div>
+      <div id="captures" class="px-4 pb-10 space-y-4"></div>
+    </div>
   </div>
 
-  <button id="galleryBtn" title="Show Gallery">📷</button>
-  <div id="gallery">
-    <button id="galleryClose" title="Close Gallery">×</button>
-    <h3>Captured Images & Transliteration</h3>
-    <div id="captures"></div>
-  </div>
-</div>
+  <!-- Libraries -->
+  <script src="https://unpkg.com/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@indic-transliteration/sanscript@1.2.8/sanscript.min.js"></script>
 
-<script src="https://unpkg.com/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@indic-transliteration/sanscript@1.2.8/sanscript.min.js"></script>
-<script>
-const video = document.getElementById('cam');
-const canvas = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
-const captureBtn = document.getElementById('capture');
-const recaptureBtn = document.getElementById('recapture');
-const ocrBtn = document.getElementById('ocrRegion');
-const toSelect = document.getElementById('toScript');
-const loader = document.getElementById('loader');
+  <script>
+    /* ==============================
+       Element References
+    ============================== */
+    const video = document.getElementById('cam');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const captureBtn = document.getElementById('capture');
+    const recaptureBtn = document.getElementById('recapture');
+    const ocrBtn = document.getElementById('ocrRegion');
+    const toSelect = document.getElementById('toScript');
+    const loader = document.getElementById('loader');
+    const galleryBtn = document.getElementById('galleryBtn');
+    const gallery = document.getElementById('gallery');
+    const galleryClose = document.getElementById('galleryClose');
 
-let worker=null, workerReady=false;
-let capturedImage=null;
-let selecting=false, selStart={}, selEnd={}, selectionRect=null;
-let captures=[];
+    let worker = null, workerReady = false;
+    let capturedImage = null;
+    let selecting = false, selStart = {}, selEnd = {}, selectionRect = null;
+    let captures = [];
 
-// Script detection
-function detectScript(text){
-  if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
-  if (/[\u0A00-\u0A7F]/.test(text)) return 'gurmukhi';
-  if (/[\u0B80-\u0BFF]/.test(text)) return 'tamil';
-  if (/[\u0C00-\u0C7F]/.test(text)) return 'telugu';
-  if (/[\u0C80-\u0CFF]/.test(text)) return 'kannada';
-  if (/[\u0D00-\u0D7F]/.test(text)) return 'malayalam';
-  if (/[\u0041-\u007A]/.test(text)) return 'latin';
-  return 'devanagari';
-}
+    /* ==============================
+       Script Detection
+    ============================== */
+    function detectScript(text) {
+      if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
+      if (/[\u0A00-\u0A7F]/.test(text)) return 'gurmukhi';
+      if (/[\u0B80-\u0BFF]/.test(text)) return 'tamil';
+      if (/[\u0C00-\u0C7F]/.test(text)) return 'telugu';
+      if (/[\u0C80-\u0CFF]/.test(text)) return 'kannada';
+      if (/[\u0D00-\u0D7F]/.test(text)) return 'malayalam';
+      if (/[A-Za-z]/.test(text)) return 'latin';
+      return 'devanagari';
+    }
 
-// Initialize camera
-async function initCamera(){
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    video.srcObject = stream;
-    await new Promise(r=>video.onloadedmetadata=r);
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    startWorker();
-  }catch(e){alert("Camera failed: "+e);}
-}
+    /* ==============================
+       Camera Handling
+    ============================== */
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        resizeCanvas();
+        startWorker();
+      } catch (e) {
+        alert("Camera access failed: " + e.message);
+      }
+    }
 
-// Stop camera
-function stopCamera(){
-  const stream = video.srcObject;
-  if(stream) stream.getTracks().forEach(track=>track.stop());
-  video.srcObject = null;
-}
+    function stopCamera() {
+      const stream = video.srcObject;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
 
-// Start Tesseract
-async function startWorker(){
-  worker = Tesseract.createWorker({ logger:m=>console.log(m) });
-  await worker.load();
-  await worker.loadLanguage('hin+tam+pan+mal+tel+kan+eng');
-  await worker.initialize('hin+tam+pan+mal+tel+kan+eng');
-  workerReady=true;
-}
+    /* ==============================
+       Tesseract Worker
+    ============================== */
+    async function startWorker() {
+      if (workerReady) return;
+      worker = Tesseract.createWorker({ logger: m => console.log(m) });
+      await worker.load();
+      await worker.loadLanguage('hin+tam+pan+mal+tel+kan+eng');
+      await worker.initialize('hin+tam+pan+mal+tel+kan+eng');
+      workerReady = true;
+    }
 
-// Capture full screen image
-function captureFrame(){
-  const tmp = document.createElement('canvas');
-  tmp.width = window.innerWidth;
-  tmp.height = window.innerHeight;
-  tmp.getContext('2d').drawImage(video,0,0,tmp.width,tmp.height);
-  capturedImage = tmp;
-  canvas.width = tmp.width;
-  canvas.height = tmp.height;
-  drawCaptured();
-  stopCamera();
-}
+    /* ==============================
+       Capture Frame
+    ============================== */
+    function captureFrame() {
+      const tmp = document.createElement('canvas');
+      tmp.width = canvas.width;
+      tmp.height = canvas.height;
+      const tctx = tmp.getContext('2d');
+      tctx.drawImage(video, 0, 0, tmp.width, tmp.height);
+      capturedImage = tmp;
+      selectionRect = null;
+      drawCaptured();
+      stopCamera();
+      ocrBtn.disabled = true;
+    }
 
-// Draw captured image + selection
-function drawCaptured(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(capturedImage) ctx.drawImage(capturedImage,0,0,canvas.width,canvas.height);
-  if(selectionRect){
-    ctx.strokeStyle='lime';
-    ctx.lineWidth=2;
-    ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
-  }
-}
+    /* ==============================
+       Drawing
+    ============================== */
+    function drawCaptured() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (capturedImage) {
+        ctx.drawImage(capturedImage, 0, 0, canvas.width, canvas.height);
+      }
+      if (selectionRect) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,0,0.9)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+        ctx.restore();
+      }
+    }
 
-// Mouse selection
-canvas.addEventListener('mousedown', e=>{
-  if(!capturedImage) return;
-  selecting=true;
-  selStart={x:e.offsetX,y:e.offsetY};
-});
-canvas.addEventListener('mousemove', e=>{
-  if(selecting){ selEnd={x:e.offsetX,y:e.offsetY}; updateSelectionRect(); drawCaptured(); }
-});
-canvas.addEventListener('mouseup', e=>{
-  selecting=false;
-  selEnd={x:e.offsetX,y:e.offsetY};
-  updateSelectionRect(); drawCaptured();
-});
+    /* ==============================
+       Selection Logic (Mouse + Touch)
+    ============================== */
+    function enableSelectionEvents() {
+      // Mouse
+      canvas.addEventListener('mousedown', e => {
+        if (!capturedImage) return;
+        selecting = true;
+        selStart = { x: e.offsetX, y: e.offsetY };
+        selEnd = { ...selStart };
+      });
 
-// Touch selection
-canvas.addEventListener('touchstart', e=>{
-  if(!capturedImage) return;
-  selecting=true;
-  const t = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  selStart = { x:(t.clientX-rect.left)*(canvas.width/rect.width), y:(t.clientY-rect.top)*(canvas.height/rect.height) };
-});
-canvas.addEventListener('touchmove', e=>{
-  if(!selecting) return;
-  const t = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  selEnd = { x:(t.clientX-rect.left)*(canvas.width/rect.width), y:(t.clientY-rect.top)*(canvas.height/rect.height) };
-  updateSelectionRect(); drawCaptured();
-});
-canvas.addEventListener('touchend', e=>{ selecting=false; drawCaptured(); });
+      canvas.addEventListener('mousemove', e => {
+        if (!selecting) return;
+        selEnd = { x: e.offsetX, y: e.offsetY };
+        updateSelectionRect();
+        drawCaptured();
+      });
 
-// Update selection rectangle
-function updateSelectionRect(){
-  if(!selStart || !selEnd) return;
-  const x=Math.min(selStart.x,selEnd.x);
-  const y=Math.min(selStart.y,selEnd.y);
-  const w=Math.abs(selStart.x-selEnd.x);
-  const h=Math.abs(selStart.y-selEnd.y);
-  selectionRect={x,y,w,h};
-}
+      window.addEventListener('mouseup', () => {
+        if (!selecting) return;
+        selecting = false;
+        updateSelectionRect();
+        drawCaptured();
+        ocrBtn.disabled = !selectionRect;
+      });
 
-// OCR + transliterate
-ocrBtn.addEventListener('click', async ()=>{
-  if(!capturedImage || !selectionRect || !workerReady) return;
-  loader.style.display='block';
+      // Touch
+      canvas.addEventListener('touchstart', e => {
+        if (!capturedImage) return;
+        selecting = true;
+        const rect = canvas.getBoundingClientRect();
+        const t = e.touches[0];
+        selStart = {
+          x: (t.clientX - rect.left) * (canvas.width / rect.width),
+          y: (t.clientY - rect.top) * (canvas.height / rect.height)
+        };
+        selEnd = { ...selStart };
+      }, { passive: true });
 
-  const tmp = document.createElement('canvas');
-  tmp.width = selectionRect.w; tmp.height = selectionRect.h;
-  const tctx = tmp.getContext('2d');
-  tctx.drawImage(capturedImage, selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h, 0,0,selectionRect.w,selectionRect.h);
+      canvas.addEventListener('touchmove', e => {
+        if (!selecting) return;
+        const rect = canvas.getBoundingClientRect();
+        const t = e.touches[0];
+        selEnd = {
+          x: (t.clientX - rect.left) * (canvas.width / rect.width),
+          y: (t.clientY - rect.top) * (canvas.height / rect.height)
+        };
+        updateSelectionRect();
+        drawCaptured();
+      }, { passive: true });
 
-  const {data:{words}} = await worker.recognize(tmp);
-  const to = toSelect.value;
+      window.addEventListener('touchend', () => {
+        if (!selecting) return;
+        selecting = false;
+        updateSelectionRect();
+        drawCaptured();
+        ocrBtn.disabled = !selectionRect;
+      });
+    }
 
-  const transliteratedWords = words.filter(w=>w.text && w.confidence>=20).map(w=>{
-    const from = detectScript(w.text);
-    try{ return Sanscript.t(w.text,from,to); }
-    catch(e){ console.warn(`Transliteration failed for "${w.text}"`); return w.text; }
-  });
+    function updateSelectionRect() {
+      if (!selStart || !selEnd) return;
+      const x = Math.min(selStart.x, selEnd.x);
+      const y = Math.min(selStart.y, selEnd.y);
+      const w = Math.abs(selStart.x - selEnd.x);
+      const h = Math.abs(selStart.y - selEnd.y);
+      if (w < 8 || h < 8) {
+        selectionRect = null;
+        ocrBtn.disabled = true;
+        return;
+      }
+      selectionRect = { x, y, w, h };
+    }
 
-  console.log("Transliterated output:", transliteratedWords.join(" "));
+    /* ==============================
+       OCR + Transliteration
+    ============================== */
+    ocrBtn.addEventListener('click', async () => {
+      if (!capturedImage || !selectionRect || !workerReady) return;
+      loader.style.display = 'flex';
 
-  ctx.clearRect(selectionRect.x,selectionRect.y,selectionRect.w,selectionRect.h);
-  ctx.drawImage(capturedImage,0,0,canvas.width,canvas.height);
-  ctx.save(); ctx.fillStyle='#ffff88'; ctx.font='20px sans-serif';
-  for(const w of words){
-    if(!w.text || w.confidence<20) continue;
-    const from = detectScript(w.text);
-    let ttext=w.text;
-    try{ ttext = Sanscript.t(w.text,from,to); }catch(e){}
-    const x = selectionRect.x + w.bbox.x0;
-    const y = selectionRect.y + w.bbox.y0;
-    ctx.fillText(ttext,x,y);
-  }
-  ctx.restore();
+      const tmp = document.createElement('canvas');
+      tmp.width = selectionRect.w;
+      tmp.height = selectionRect.h;
+      const tctx = tmp.getContext('2d');
 
-  captures.unshift({ img: tmp.toDataURL(), text: transliteratedWords.join(" ") });
-  updateGallery();
-  loader.style.display='none';
-});
+      tctx.drawImage(
+        capturedImage,
+        selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h,
+        0, 0, selectionRect.w, selectionRect.h
+      );
 
-// Capture button
-captureBtn.addEventListener('click', ()=>captureFrame());
+      let result;
+      try {
+        result = await worker.recognize(tmp);
+      } catch (e) {
+        console.error(e);
+        loader.style.display = 'none';
+        alert("OCR failed.");
+        return;
+      }
 
-// Re-capture button
-recaptureBtn.addEventListener('click', async ()=>{
-  capturedImage=null;
-  selectionRect=null;
-  drawCaptured();
-  await initCamera();
-});
+      const words = result?.data?.words || [];
+      const to = toSelect.value;
 
-// Update gallery
-function updateGallery(){
-  const container=document.getElementById('captures');
-  container.innerHTML='';
-  for(const cap of captures){
-    const div=document.createElement('div');
-    div.style.display='flex'; div.style.alignItems='center';
-    div.style.marginBottom='12px';
-    div.innerHTML=`<img src="${cap.img}" style="width:90px;height:68px;object-fit:cover;border-radius:6px;margin-right:12px;border:1px solid #444;" /><span style="color:#ffff88;font-size:1.1em;">${cap.text}</span>`;
-    container.appendChild(div);
-  }
-}
-// Gallery show/hide logic
-const galleryBtn = document.getElementById('galleryBtn');
-const gallery = document.getElementById('gallery');
-const galleryClose = document.getElementById('galleryClose');
-galleryBtn.addEventListener('click',()=>{ gallery.classList.add('visible'); });
-galleryClose.addEventListener('click',()=>{ gallery.classList.remove('visible'); });
+      const transliteratedWords = words
+        .filter(w => w.text && w.confidence >= 20)
+        .map(w => {
+          const from = detectScript(w.text);
+          try { return Sanscript.t(w.text, from, to); }
+          catch (_) { return w.text; }
+        });
 
-window.addEventListener('resize', ()=>{ canvas.width=window.innerWidth; canvas.height=window.innerHeight; drawCaptured(); });
+      // Redraw full image
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(capturedImage, 0, 0, canvas.width, canvas.height);
 
-initCamera();
-</script>
+      // Overlay transliteration inside selection
+      ctx.save();
+      ctx.fillStyle = '#fff9b0';
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = 4;
+      for (const w of words) {
+        if (!w.text || w.confidence < 20) continue;
+        const from = detectScript(w.text);
+        let ttext = w.text;
+        try { ttext = Sanscript.t(w.text, from, to); } catch (_) { }
+        const x = selectionRect.x + w.bbox.x0;
+        const y = selectionRect.y + w.bbox.y1; // baseline adjust
+        ctx.fillText(ttext, x, y);
+      }
+      ctx.restore();
+
+      captures.unshift({
+        img: tmp.toDataURL('image/jpeg', 0.85),
+        text: transliteratedWords.join(' ')
+      });
+      updateGallery();
+      loader.style.display = 'none';
+    });
+
+    /* ==============================
+       Gallery Handling
+    ============================== */
+    function updateGallery() {
+      const container = document.getElementById('captures');
+      container.innerHTML = '';
+      if (!captures.length) {
+        container.innerHTML = '<p class="text-neutral-400 text-sm">No captures yet.</p>';
+        return;
+      }
+      for (const cap of captures) {
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-3 p-2 rounded-lg bg-white/5 border border-white/10';
+        row.innerHTML = `
+      <img src="${cap.img}"
+           class="w-24 h-20 object-cover rounded-md border border-white/10 flex-shrink-0"
+           alt="Captured region preview" />
+      <div class="flex-1">
+        <p class="text-amber-200 text-sm leading-snug break-words">${cap.text || '<i class="opacity-60">[No text]</i>'}</p>
+      </div>
+    `;
+        container.appendChild(row);
+      }
+    }
+
+    galleryBtn.addEventListener('click', () => {
+      gallery.classList.remove('hidden');
+      gallery.setAttribute('aria-modal', 'true');
+      gallery.setAttribute('role', 'dialog');
+    });
+
+    galleryClose.addEventListener('click', () => {
+      gallery.classList.add('hidden');
+      gallery.removeAttribute('aria-modal');
+      gallery.removeAttribute('role');
+    });
+
+    /* ==============================
+       Control Buttons
+    ============================== */
+    captureBtn.addEventListener('click', () => captureFrame());
+
+    recaptureBtn.addEventListener('click', async () => {
+      capturedImage = null;
+      selectionRect = null;
+      drawCaptured();
+      ocrBtn.disabled = true;
+      await initCamera();
+    });
+
+    /* ==============================
+       Responsive / Resize
+    ============================== */
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      if (capturedImage) {
+        drawCaptured();
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(resizeCanvas, 350);
+    });
+
+    /* ==============================
+       Init
+    ============================== */
+    enableSelectionEvents();
+    initCamera();
+
+  </script>
 </body>
+
 </html>
