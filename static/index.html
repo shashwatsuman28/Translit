@@ -13,82 +13,75 @@
       darkMode: 'class',
       theme: {
         extend: {
-          colors: {
-            surface: '#0a0a0a'
-          }
+          colors: { surface: '#0a0a0a' }
         }
       }
     }
   </script>
 
   <style>
-    /* Ensure body and html fill screen */
     html,
     body {
       height: 100%;
     }
 
-    /* Prevent iOS rubber-band interfering with selection canvas */
     body {
       overscroll-behavior: none;
     }
 
-    /* Allow touch drawing on canvas */
     canvas#overlay {
       touch-action: none;
     }
 
-    /* Hide loader by default */
     #loader {
       display: none;
     }
 
-    /* Fallback if Tailwind fails */
-    .no-tailwind-hidden {
-      display: none;
-    }
-
-    /* Prevent text selection while drawing selection */
     .noselect {
+      user-select: none;
       -webkit-user-select: none;
       -moz-user-select: none;
-      user-select: none;
+    }
+
+    :root {
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
   </style>
 </head>
 
 <body class="h-full bg-black text-white font-sans relative noselect">
 
-  <div id="app" class="relative w-screen h-screen overflow-hidden">
-    <!-- Info banner -->
+  <div id="app" class="relative w-screen h-screen">
+    <!-- Info -->
     <div id="info"
       class="absolute top-safe left-safe m-2 sm:m-3 z-30 bg-black/50 backdrop-blur rounded-md px-3 py-2 text-xs sm:text-sm leading-snug max-w-[80vw]">
       <span class="font-semibold">Tip:</span> Capture, then drag to select a region to transliterate.
     </div>
 
     <!-- Loader -->
-    <div id="loader" class="absolute inset-0 flex items-center justify-center z-50">
+    <div id="loader" class="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
       <div
         class="px-5 py-3 rounded-xl bg-black/70 backdrop-blur text-amber-200 text-sm sm:text-base shadow-lg animate-pulse">
         Transliterating...
       </div>
     </div>
 
-    <!-- Camera & Canvas Layer -->
-    <div class="absolute inset-0">
+    <!-- Camera & Canvas wrapper -->
+    <div class="absolute inset-0 overflow-hidden">
       <video id="cam" autoplay playsinline class="w-full h-full object-cover block" aria-label="Camera preview"></video>
       <canvas id="overlay" class="absolute inset-0 w-full h-full"></canvas>
     </div>
 
     <!-- Floating Gallery Button -->
     <button id="galleryBtn" title="Show Gallery"
-      class="fixed z-40 bottom-28 right-4 sm:bottom-32 sm:right-6 w-14 h-14 rounded-full bg-neutral-800/90 hover:bg-neutral-700 text-2xl shadow-lg shadow-black/50 flex items-center justify-center active:scale-95 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      class="fixed z-60 bottom-[calc(var(--safe-bottom)+7.5rem)] right-4 sm:right-6 w-14 h-14 rounded-full bg-neutral-800/90 hover:bg-neutral-700 text-2xl shadow-lg shadow-black/50 flex items-center justify-center active:scale-95 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
       aria-haspopup="dialog" aria-controls="gallery">📷</button>
 
-    <!-- Controls Panel -->
-    <div id="controls"
-      class="absolute z-40 bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/70 to-black/40 backdrop-blur pt-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] px-2">
-      <div class="mx-auto max-w-xl flex flex-wrap gap-2 justify-center">
+    <!-- Controls Panel (fixed now) -->
+    <div id="controls" class="fixed z-50 bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/90 to-black/40 backdrop-blur
+              pt-3 pb-[calc(var(--safe-bottom)+0.75rem)] px-2
+              shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.6)]">
+      <div class="mx-auto max-w-xl flex flex-wrap gap-2 justify-center items-stretch min-h-[64px]">
         <label class="sr-only" for="toScript">Output Script</label>
         <select id="toScript"
           class="flex-1 min-w-[44%] sm:min-w-[180px] px-3 py-3 rounded-lg bg-white/10 border border-white/15 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-amber-400">
@@ -137,9 +130,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@indic-transliteration/sanscript@1.2.8/sanscript.min.js"></script>
 
   <script>
-    /* ==============================
-       Element References
-    ============================== */
+    /* Core logic unchanged */
     const video = document.getElementById('cam');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
@@ -157,9 +148,6 @@
     let selecting = false, selStart = {}, selEnd = {}, selectionRect = null;
     let captures = [];
 
-    /* ==============================
-       Script Detection
-    ============================== */
     function detectScript(text) {
       if (/[\u0900-\u097F]/.test(text)) return 'devanagari';
       if (/[\u0A00-\u0A7F]/.test(text)) return 'gurmukhi';
@@ -171,37 +159,24 @@
       return 'devanagari';
     }
 
-    /* ==============================
-       Camera Handling
-    ============================== */
     async function initCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
         });
         video.srcObject = stream;
         await video.play();
         resizeCanvas();
         startWorker();
-      } catch (e) {
-        alert("Camera access failed: " + e.message);
-      }
+      } catch (e) { alert("Camera access failed: " + e.message); }
     }
 
     function stopCamera() {
-      const stream = video.srcObject;
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      const s = video.srcObject;
+      if (s) s.getTracks().forEach(t => t.stop());
       video.srcObject = null;
     }
 
-    /* ==============================
-       Tesseract Worker
-    ============================== */
     async function startWorker() {
       if (workerReady) return;
       worker = Tesseract.createWorker({ logger: m => console.log(m) });
@@ -211,15 +186,10 @@
       workerReady = true;
     }
 
-    /* ==============================
-       Capture Frame
-    ============================== */
     function captureFrame() {
       const tmp = document.createElement('canvas');
-      tmp.width = canvas.width;
-      tmp.height = canvas.height;
-      const tctx = tmp.getContext('2d');
-      tctx.drawImage(video, 0, 0, tmp.width, tmp.height);
+      tmp.width = canvas.width; tmp.height = canvas.height;
+      tmp.getContext('2d').drawImage(video, 0, 0, tmp.width, tmp.height);
       capturedImage = tmp;
       selectionRect = null;
       drawCaptured();
@@ -227,14 +197,9 @@
       ocrBtn.disabled = true;
     }
 
-    /* ==============================
-       Drawing
-    ============================== */
     function drawCaptured() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (capturedImage) {
-        ctx.drawImage(capturedImage, 0, 0, canvas.width, canvas.height);
-      }
+      if (capturedImage) ctx.drawImage(capturedImage, 0, 0, canvas.width, canvas.height);
       if (selectionRect) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255,255,0,0.9)';
@@ -245,25 +210,19 @@
       }
     }
 
-    /* ==============================
-       Selection Logic (Mouse + Touch)
-    ============================== */
     function enableSelectionEvents() {
-      // Mouse
       canvas.addEventListener('mousedown', e => {
         if (!capturedImage) return;
         selecting = true;
         selStart = { x: e.offsetX, y: e.offsetY };
         selEnd = { ...selStart };
       });
-
       canvas.addEventListener('mousemove', e => {
         if (!selecting) return;
         selEnd = { x: e.offsetX, y: e.offsetY };
         updateSelectionRect();
         drawCaptured();
       });
-
       window.addEventListener('mouseup', () => {
         if (!selecting) return;
         selecting = false;
@@ -272,31 +231,28 @@
         ocrBtn.disabled = !selectionRect;
       });
 
-      // Touch
       canvas.addEventListener('touchstart', e => {
         if (!capturedImage) return;
         selecting = true;
-        const rect = canvas.getBoundingClientRect();
+        const r = canvas.getBoundingClientRect();
         const t = e.touches[0];
         selStart = {
-          x: (t.clientX - rect.left) * (canvas.width / rect.width),
-          y: (t.clientY - rect.top) * (canvas.height / rect.height)
+          x: (t.clientX - r.left) * (canvas.width / r.width),
+          y: (t.clientY - r.top) * (canvas.height / r.height)
         };
         selEnd = { ...selStart };
       }, { passive: true });
-
       canvas.addEventListener('touchmove', e => {
         if (!selecting) return;
-        const rect = canvas.getBoundingClientRect();
+        const r = canvas.getBoundingClientRect();
         const t = e.touches[0];
         selEnd = {
-          x: (t.clientX - rect.left) * (canvas.width / rect.width),
-          y: (t.clientY - rect.top) * (canvas.height / rect.height)
+          x: (t.clientX - r.left) * (canvas.width / r.width),
+          y: (t.clientY - r.top) * (canvas.height / r.height)
         };
         updateSelectionRect();
         drawCaptured();
       }, { passive: true });
-
       window.addEventListener('touchend', () => {
         if (!selecting) return;
         selecting = false;
@@ -312,58 +268,36 @@
       const y = Math.min(selStart.y, selEnd.y);
       const w = Math.abs(selStart.x - selEnd.x);
       const h = Math.abs(selStart.y - selEnd.y);
-      if (w < 8 || h < 8) {
-        selectionRect = null;
-        ocrBtn.disabled = true;
-        return;
-      }
+      if (w < 8 || h < 8) { selectionRect = null; ocrBtn.disabled = true; return; }
       selectionRect = { x, y, w, h };
     }
 
-    /* ==============================
-       OCR + Transliteration
-    ============================== */
     ocrBtn.addEventListener('click', async () => {
       if (!capturedImage || !selectionRect || !workerReady) return;
       loader.style.display = 'flex';
-
       const tmp = document.createElement('canvas');
-      tmp.width = selectionRect.w;
-      tmp.height = selectionRect.h;
+      tmp.width = selectionRect.w; tmp.height = selectionRect.h;
       const tctx = tmp.getContext('2d');
-
       tctx.drawImage(
         capturedImage,
         selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h,
         0, 0, selectionRect.w, selectionRect.h
       );
-
       let result;
       try {
         result = await worker.recognize(tmp);
       } catch (e) {
-        console.error(e);
-        loader.style.display = 'none';
-        alert("OCR failed.");
-        return;
+        console.error(e); loader.style.display = 'none'; alert("OCR failed."); return;
       }
-
       const words = result?.data?.words || [];
       const to = toSelect.value;
+      const transliteratedWords = words.filter(w => w.text && w.confidence >= 20).map(w => {
+        const from = detectScript(w.text);
+        try { return Sanscript.t(w.text, from, to); } catch (_) { return w.text; }
+      });
 
-      const transliteratedWords = words
-        .filter(w => w.text && w.confidence >= 20)
-        .map(w => {
-          const from = detectScript(w.text);
-          try { return Sanscript.t(w.text, from, to); }
-          catch (_) { return w.text; }
-        });
-
-      // Redraw full image
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(capturedImage, 0, 0, canvas.width, canvas.height);
-
-      // Overlay transliteration inside selection
       ctx.save();
       ctx.fillStyle = '#fff9b0';
       ctx.font = '16px system-ui, sans-serif';
@@ -375,22 +309,16 @@
         let ttext = w.text;
         try { ttext = Sanscript.t(w.text, from, to); } catch (_) { }
         const x = selectionRect.x + w.bbox.x0;
-        const y = selectionRect.y + w.bbox.y1; // baseline adjust
+        const y = selectionRect.y + w.bbox.y1;
         ctx.fillText(ttext, x, y);
       }
       ctx.restore();
 
-      captures.unshift({
-        img: tmp.toDataURL('image/jpeg', 0.85),
-        text: transliteratedWords.join(' ')
-      });
+      captures.unshift({ img: tmp.toDataURL('image/jpeg', 0.85), text: transliteratedWords.join(' ') });
       updateGallery();
       loader.style.display = 'none';
     });
 
-    /* ==============================
-       Gallery Handling
-    ============================== */
     function updateGallery() {
       const container = document.getElementById('captures');
       container.innerHTML = '';
@@ -402,9 +330,7 @@
         const row = document.createElement('div');
         row.className = 'flex items-start gap-3 p-2 rounded-lg bg-white/5 border border-white/10';
         row.innerHTML = `
-      <img src="${cap.img}"
-           class="w-24 h-20 object-cover rounded-md border border-white/10 flex-shrink-0"
-           alt="Captured region preview" />
+      <img src="${cap.img}" class="w-24 h-20 object-cover rounded-md border border-white/10 flex-shrink-0" alt="Captured region preview" />
       <div class="flex-1">
         <p class="text-amber-200 text-sm leading-snug break-words">${cap.text || '<i class="opacity-60">[No text]</i>'}</p>
       </div>
@@ -418,18 +344,13 @@
       gallery.setAttribute('aria-modal', 'true');
       gallery.setAttribute('role', 'dialog');
     });
-
     galleryClose.addEventListener('click', () => {
       gallery.classList.add('hidden');
       gallery.removeAttribute('aria-modal');
       gallery.removeAttribute('role');
     });
 
-    /* ==============================
-       Control Buttons
-    ============================== */
     captureBtn.addEventListener('click', () => captureFrame());
-
     recaptureBtn.addEventListener('click', async () => {
       capturedImage = null;
       selectionRect = null;
@@ -438,28 +359,17 @@
       await initCamera();
     });
 
-    /* ==============================
-       Responsive / Resize
-    ============================== */
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      if (capturedImage) {
-        drawCaptured();
-      }
+      if (capturedImage) drawCaptured();
     }
 
     window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('orientationchange', () => {
-      setTimeout(resizeCanvas, 350);
-    });
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 350));
 
-    /* ==============================
-       Init
-    ============================== */
     enableSelectionEvents();
     initCamera();
-
   </script>
 </body>
 
