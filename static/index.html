@@ -146,6 +146,35 @@
       </div>
       <div id="captures" class="px-4 pb-10 space-y-4"></div>
     </div>
+<body>
+<div id="app">
+  <div id="info">Capture an image, then drag to select area for transliteration</div>
+  <div id="loader">Transliterating...</div>
+  <video id="cam" autoplay playsinline></video>
+  <canvas id="overlay"></canvas>
+
+  <div id="controls">
+    <select id="toScript">
+      <option value="devanagari">Devanagari (देवनागरी)</option>
+      <option value="bengali">Bengali (বাংলা)</option>
+      <option value="gujarati">Gujarati (ગુજરાતી)</option>
+      <option value="gurmukhi">Gurmukhi (ਗੁਰਮੁਖੀ)</option>
+      <option value="kannada">Kannada (ಕನ್ನಡ)</option>
+      <option value="malayalam">Malayalam (മലയാളം)</option>
+      <option value="oriya">Oriya (ଓଡ଼ିଆ)</option>
+      <option value="tamil">Tamil (தமிழ்)</option>
+      <option value="telugu">Telugu (తెలుగు)</option>
+      <option value="iast">IAST (Latin)</option>
+      <option value="itrans">ITRANS</option>
+      <option value="hk">Harvard-Kyoto</option>
+      <option value="slp1">SLP1</option>
+      <option value="velthuis">Velthuis</option>
+      <option value="wx">WX</option>
+      <option value="roman">Roman (Simple Latin)</option>
+    </select>
+    <button id="capture">Capture</button>
+    <button id="recapture">Re-capture</button>
+    <button id="ocrRegion">Transliterate Selection</button>
   </div>
 
   <!-- Install Toast -->
