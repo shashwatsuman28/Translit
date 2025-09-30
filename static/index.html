@@ -108,13 +108,22 @@
         <label class="sr-only" for="toScript">Output Script</label>
         <select id="toScript"
           class="flex-1 min-w-[44%] sm:min-w-[180px] px-3 py-3 rounded-lg bg-white/10 border border-white/15 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-amber-400">
-          <option value="iast">Latin (IAST)</option>
-          <option value="devanagari">Devanagari</option>
-          <option value="gurmukhi">Gurmukhi</option>
-          <option value="tamil">Tamil</option>
-          <option value="telugu">Telugu</option>
-          <option value="kannada">Kannada</option>
-          <option value="malayalam">Malayalam</option>
+          <option value="devanagari">Devanagari (देवनागरी)</option>
+          <option value="bengali">Bengali (বাংলা)</option>
+          <option value="gujarati">Gujarati (ગુજરાતી)</option>
+          <option value="gurmukhi">Gurmukhi (ਗੁਰਮੁਖੀ)</option>
+          <option value="kannada">Kannada (ಕನ್ನಡ)</option>
+          <option value="malayalam">Malayalam (മലയാളം)</option>
+          <option value="oriya">Oriya (ଓଡ଼ିଆ)</option>
+          <option value="tamil">Tamil (தமிழ்)</option>
+          <option value="telugu">Telugu (తెలుగు)</option>
+          <option value="iast">IAST (Latin)</option>
+          <option value="itrans">ITRANS</option>
+          <option value="hk">Harvard-Kyoto</option>
+          <option value="slp1">SLP1</option>
+          <option value="velthuis">Velthuis</option>
+          <option value="wx">WX</option>
+          <option value="roman">Roman (Simple Latin)</option>
         </select>
 
         <button id="capture"
@@ -146,63 +155,7 @@
       </div>
       <div id="captures" class="px-4 pb-10 space-y-4"></div>
     </div>
-<body>
-<div id="app">
-  <div id="info">Capture an image, then drag to select area for transliteration</div>
-  <div id="loader">Transliterating...</div>
-  <video id="cam" autoplay playsinline></video>
-  <canvas id="overlay"></canvas>
 
-  <div id="controls">
-    <select id="toScript">
-      <option value="devanagari">Devanagari (देवनागरी)</option>
-      <option value="bengali">Bengali (বাংলা)</option>
-      <option value="gujarati">Gujarati (ગુજરાતી)</option>
-      <option value="gurmukhi">Gurmukhi (ਗੁਰਮੁਖੀ)</option>
-      <option value="kannada">Kannada (ಕನ್ನಡ)</option>
-      <option value="malayalam">Malayalam (മലയാളം)</option>
-      <option value="oriya">Oriya (ଓଡ଼ିଆ)</option>
-      <option value="tamil">Tamil (தமிழ்)</option>
-      <option value="telugu">Telugu (తెలుగు)</option>
-      <option value="iast">IAST (Latin)</option>
-      <option value="itrans">ITRANS</option>
-      <option value="hk">Harvard-Kyoto</option>
-      <option value="slp1">SLP1</option>
-      <option value="velthuis">Velthuis</option>
-      <option value="wx">WX</option>
-      <option value="roman">Roman (Simple Latin)</option>
-    </select>
-    <button id="capture">Capture</button>
-    <button id="recapture">Re-capture</button>
-    <button id="ocrRegion">Transliterate Selection</button>
-  </div>
-
-  <!-- Install Toast -->
-  <div id="installToast"
-    class="hidden fixed left-1/2 bottom-[calc(var(--safe-bottom)+5.5rem)] -translate-x-1/2 z-[1200] w-[92%] max-w-sm bg-neutral-900/95 backdrop-blur border border-white/15 rounded-2xl px-4 py-3 shadow-xl shadow-black/60">
-    <div class="flex items-start gap-3">
-      <div class="text-2xl leading-none">📲</div>
-      <div class="flex-1">
-        <p class="font-semibold text-sm">Install ScriptTranslit</p>
-        <p class="text-xs text-neutral-300 leading-snug mt-0.5" id="installText">
-          Add this app to your home screen for faster access and offline use.
-        </p>
-        <!-- iOS instructions hidden by default -->
-        <ul id="iosInstructions" class="hidden mt-2 text-[11px] text-neutral-300 list-disc pl-4 space-y-1">
-          <li>Tap the Share icon in Safari</li>
-          <li>Select "Add to Home Screen"</li>
-        </ul>
-      </div>
-    </div>
-    <div class="flex gap-2 mt-3">
-      <button id="dismissInstall"
-        class="flex-1 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-medium">Maybe later</button>
-      <button id="confirmInstall"
-        class="flex-1 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-semibold shadow disabled:opacity-40 disabled:cursor-not-allowed">
-        Install
-      </button>
-    </div>
-  </div>
 
   <!-- Libraries -->
   <script src="https://unpkg.com/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
